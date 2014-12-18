@@ -2,45 +2,58 @@ $L = {
   debug: false,
   images: [],
   pointer: {x:0,y:0},
+  shifted: false,
   initialize: function(options) {
 
     this.options = options || {}
+    this.options.hotkeys = this.options.hotkeys || true
 
     // disable some default Leaflet interactions
     // not really sure why this is necessary
     map.touchZoom.disable();
     map.doubleClickZoom.disable();
+    map.boxZoom.disable();
 
-    $(window).keydown(function(e){
-      switch (e.which) {
-        case 68: // d
-          $L.selected.mode = 'distort'
-          $L.selected.changeMode.apply($L.selected)
-          break;
-        case 82: // r
-          $L.selected.mode = 'rotate'
-          $L.selected.changeMode.apply($L.selected)
-          break;
-        case 84: // t
-          // transparency
-          break;
-        case 79: // o
-          $L.selected.toggleOutline()
-          break;
-        case 76: // l
-          if ($L.selected.locked) $L.selected.unlock()
-          else $L.selected.lock()
-          break;
-      }
-    })
+    if (this.options.hotkeys) {
+      $(document).on('keyup keydown', function(e){$L.shifted = e.shiftKey} );
+ 
+      $(document).keydown(function(e){
+        if ($L.selected) {
+          switch (e.which) {
+            case 73: // i
+              $L.selected.toggleIsolate()
+              break;
+            case 72: // h
+              $L.selected.toggleVisibility()
+              break;
+            case 68: // d
+              $L.selected.toggleMode.apply($L.selected)
+              break;
+            case 82: // r
+              $L.selected.toggleMode.apply($L.selected)
+              break;
+            case 84: // t
+              $L.selected.toggleTransparency()
+              break;
+            case 79: // o
+              $L.selected.toggleOutline()
+              break;
+            case 76: // l
+              if ($L.selected.locked) $L.selected.unlock()
+              else $L.selected.lock()
+              break;
+          }
+        }
+      })
+    }
 
     // this runs *as well as* image.click events, 
     // when you click an image
     map.on('click', function(e) {
-//      $L.clearImageButtons()
-//      $.each($L.images,function(i,d) {
-//        d.deselect.apply(d)
-//      })
+      $.each($L.images,function(i,d) {
+        d.deselect.apply(d)
+      })
+      $L.impose_order()
     })
 
     map.on('mousemove',function(e) {
@@ -59,12 +72,18 @@ $L = {
           var reader = new FileReader();
           reader.onload = function(e) {
             img = new L.DistortableImageOverlay(e.target.result);
-            img.select()
           }
           reader.readAsDataURL(this.files[0]);
         }
       });
     }
+  },
+
+  // impose the ordering of $L.images on the z-indices
+  impose_order: function() {
+    $.each($L.images,function(i,img) {
+      img.bringToFront()
+    })
   },
 
   // Compute the adjugate of m
@@ -165,9 +184,9 @@ $L = {
 
 L.ImageMarker = L.Marker.extend({
   // icons generated from FontAwesome at: http://fa2png.io/
-  icons: { grey: '../src/images/circle-o_444444_16.png',
-            red: '../src/images/circle-o_cc4444_16.png',
-         locked: '../src/images/close_444444_16.png'
+  icons: { grey: 'circle-o_444444_16.png',
+            red: 'circle-o_cc4444_16.png',
+         locked: 'close_444444_16.png'
   },
   options: {
     pane: 'markerPane',
@@ -183,7 +202,7 @@ L.ImageMarker = L.Marker.extend({
     riseOffset: 250
   },
   setFromIcons: function(name) {
-    this.setIcon(new L.Icon({iconUrl:this.icons[name],iconSize:[16,16],iconAnchor:[8,8]}))
+    this.setIcon(new L.Icon({iconUrl:$L.options.img_dir+this.icons[name],iconSize:[16,16],iconAnchor:[8,8]}))
   }
   
 });
@@ -212,14 +231,16 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
     this._image.onload = (function(s) {
       return function() {
         s._image.onclick = s.onclick
+        // lock on doubleclick
+        $('#'+s._image.id).dblclick(function(e){ this.parentObj.toggleLock.apply(this.parentObj) })
       }
     })(this)
  
-    this.mode = 'distort'
-    this.changeMode()
+    this.changeMode('distort')
 
     this.draggable = new L.Draggable(this._image);
     this.draggable.enable();
+    if (this.options.locked) this.lock()
 
     this.draggable.on('dragstart',function() {
       this.dragStartPos = map.latLngToLayerPoint(this._bounds._northEast) // get position so we can track offset
@@ -244,9 +265,8 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
     },this)
 
     this.draggable.on('dragend',function() {
-      if (this.mode == 'rotate') this.mode = 'distort'
-      else this.mode = 'rotate'
-      this.changeMode()
+      // undo the toggling of mode from the initial click
+      this.toggleMode()
     },this)
  
   },
@@ -288,8 +308,14 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
       for(var i = 0; i < 8; i = i+2) {
         // convert to lat/lng
         var a = map.layerPointToLatLng([this.corners[i],this.corners[i+1]]);
-        var marker = new L.ImageMarker([a.lat, a.lng])
-        marker.setFromIcons('grey')
+        var marker = new L.ImageMarker(
+          [a.lat, a.lng],
+          // might as well do this now, so there's no possibility 
+          // of dragging between initialization and final image load
+          { draggable: (this.options.locked != true) }
+        )
+        if (this.options.locked == true) marker.setFromIcons('locked')
+        else marker.setFromIcons('grey')
         marker.addTo(map);
         marker.parentImage = this
         marker.orderId = i 
@@ -302,12 +328,13 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
      
       // the zoom level at the time the image was created:
       this.defaultZoom = map._zoom; 
-      this.opaque = false;
+      this.transparent = false;
+      this.hidden = false;
       this.outlined = false;
       this._url = url;
       this._bounds = L.latLngBounds(bounds);// (LatLngBounds, Object)
       this.initialPos = this.getPosition()
-      // tracking pans
+      // for tracking pans
       this.offsetX = 0
       this.offsetY = 0
      
@@ -335,8 +362,12 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
                       - this.initialPos.y
       },this)
 
+      // this also deselects other images:
+      this.select()
+
       // this actually displays it on the map:
-      this.bringToFront().addTo(map);
+      this.bringToFront().addTo(map)
+      this.updateTransform()
 
     },this, 'load');
 
@@ -347,25 +378,69 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
     L.setOptions(this, options);
   },
 
+  // empty handler; can be user-replaced:
+  onSelect: function() {
+
+  },
+
+  // empty handler; can be user-replaced:
+  onDeselect: function() {
+
+  },
+
   // change between 'distort' and 'rotate' mode
-  changeMode: function() {
-    for (var i in this.markers) {
-      if (this.mode == 'rotate') {
-        this.markers[i].off('dragstart');
-        this.markers[i].off('drag');
-        this.markers[i].on('dragstart',this.rotateStart,this);
-        this.markers[i].on('drag',this.rotate,this);
-        $.each(this.markers,function(i,m) {
-          m.setFromIcons('red')
-        })
-      } else {
-        this.markers[i].off('drag');
-        this.markers[i].on('drag',this.distort,this);
-        $.each(this.markers,function(i,m) {
-          m.setFromIcons('grey')
-        })
-      }
+  toggleMode: function() {
+    if (this.mode == 'rotate') {
+      this.changeMode('distort')
+    } else {
+      this.changeMode('rotate')
     }
+  },
+
+  changeMode: function(mode) {
+    this.mode = mode
+    $.each(this.markers,function(i,m) {
+      if (mode == 'rotate') {
+        m.off('dragstart');
+        m.off('drag');
+        m.on('dragstart',this.parentImage.rotateStart,this.parentImage);
+        m.on('drag',this.parentImage.rotate,this.parentImage);
+        m.setFromIcons('red')
+      } else if (mode == 'locked') {
+        m.off('dragstart');
+        m.off('drag');
+        // setIcon and draggable.disable() conflict;
+        // described here but not yet fixed: 
+        // https://github.com/Leaflet/Leaflet/issues/2578
+        //m.draggable.disable()
+        m.setFromIcons('locked')
+      } else { // default
+        m.off('drag');
+        m.on('drag',this.parentImage.distort,this.parentImage);
+        m.setFromIcons('grey')
+      }
+    })
+  },
+
+  // This overlaps somewhat with the changeMode() method. 
+  // Could consolidate.
+  lock: function() {
+    this.locked = true
+    this.off('dragstart');
+    this.off('drag');
+    this.draggable.disable()
+    this.changeMode('locked')
+  },
+
+  unlock: function() {
+    this.locked = false
+    this.draggable.enable()
+    this.changeMode('distort')
+  },
+
+  toggleLock: function() {
+    if (this.locked) this.unlock()
+    else this.lock()
   },
 
   // remember 'this' gets context of marker, not image
@@ -412,38 +487,52 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
     this.debug()
   },
 
-  debug: function() {
-    if ($L.debug) {
-      $('#debugmarkers').show()
-      $('#debug-green').css('left',this.getPosition().x)
-      $('#debug-green').css('top',this.getPosition().y)
-
-      $('#debug-green').css('right',this.getPosition().y)
-      $('#debugb').css('left',this.getPosition().x)
-      $('#debugb').css('top',this.getPosition().y)
-      $('#debugb').css('width',this.getPosition().x)
-      $('#debugb').css('height',this.getPosition().y)
-      $('#debug').css('left',this.initialPos.x)
-      $('#debug').css('top',this.initialPos.y)
-      for (i=0;i<4;i++) {
-        $('#debug'+i).css('left',this.corners[2*i])
-        $('#debug'+i).css('top',this.corners[2*i+1])
-      }
-    }
-  },
-
   toggleOutline: function() {
     this.outlined = !this.outlined;
     if (this.outlined) {
-      this.setOpacity(0.4);
       $('#'+this._image.id).css('border','1px solid red');
     } else {
-      this.setOpacity(1);
       $('#'+this._image.id).css('border', 'none');
     }
   },
 
+  toggleTransparency: function() {
+    this.transparent = !this.transparent;
+    if (this.transparent) {
+      this.setOpacity(0.4);
+    } else {
+      this.setOpacity(1);
+    }
+  },
+
+  toggleIsolate: function() {
+    this.isolated = !this.isolated
+    if (this.isolated) {
+      $.each($L.images,function(i,img) {
+        img.hidden = false
+        img.setOpacity(1)
+      })
+    } else {
+      $.each($L.images,function(i,img) {
+        img.hidden = true
+        img.setOpacity(0)
+      })
+    }
+    this.hidden = false
+    this.setOpacity(1);
+  },
+
+  toggleVisibility: function() {
+    this.hidden = !this.hidden;
+    if (this.hidden) {
+      this.setOpacity(1);
+    } else {
+      this.setOpacity(0);
+    }
+  },
+
   deselect: function() {
+    $L.selected = false
     for (i in this.markers) {
       // this isn't a good way to hide markers:
       map.removeLayer(this.markers[i])
@@ -454,33 +543,33 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
       this.transparencyBtn._container.remove()
       this.deleteBtn._container.remove()
     }
+    this.onDeselect()
   },
 
   select: function() {
-    $L.selected = this
     // deselect other images
     $.each($L.images,function(i,d) {
       d.deselect.apply(d)
     })
+
+    // re-establish order
+    $L.impose_order()
+    $L.selected = this
     // show corner markers
     for (i in this.markers) {
       this.markers[i].addTo(map)
     }
-    // create buttons
 
-    // this doesn't work
+    // create buttons
     this.transparencyBtn = L.easyButton('fa-adjust', 
-       function () {
-         var e = $('#'+$('#image-distort-outline')[0].getAttribute('parentImgId'))[0]
-         if (e.opacity == 1) {
-           L.setOpacity(e,0.7);
-           e.setAttribute('opacity',0.7);
-         } else {
-           L.setOpacity(e,1);
-           e.setAttribute('opacity',1);
-         }
-       },
-      'Toggle Image Transparency'
+      (function (s) {
+        return function() {
+          s.toggleTransparency();
+        }
+      })(this),
+      'Toggle Image Transparency',
+      map,
+      this
     )
     
     this.outlineBtn = L.easyButton('fa-square-o', 
@@ -501,21 +590,22 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
         map.removeLayer(this.markers[i]);
       },
      'Delete Image')
+
+    this.bringToFront()
+    this.onSelect()
   },
 
   // has scope of img element; use this.parentObj
   onclick: function(e) {
     if ($L.selected == this.parentObj) {
-      // switch modes
-      if (this.parentObj.draggable._enabled) {
-        this.parentObj.bringToFront()
-        if (this.parentObj.mode == 'rotate') this.parentObj.mode = 'distort'
-        else this.parentObj.mode = 'rotate'
-        this.parentObj.changeMode.apply(this.parentObj)
+      if (this.parentObj.locked != true) {
+        this.parentObj.toggleMode.apply(this.parentObj)
       }
     } else {
       this.parentObj.select.apply(this.parentObj)
     }
+    // this prevents the event from propagating to the map object:
+    L.DomEvent.stopPropagation(e);
   },
 
   rotateStart: function(e) {
@@ -540,7 +630,7 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
     var angle_change = angle-this.pointer_angle
 
     // keyboard keypress event is not hooked up:
-    if (false) angle_change = 0 
+    if ($L.shifted) angle_change = 0 
 
     // use angle to recalculate each of the points in this.parent_shape.points
     for (var i in this.markers) {
@@ -572,24 +662,24 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
     return [x,y]
   },
 
-  lock: function() {
-    this.locked = true
-    this.off('dragstart');
-    this.off('drag');
-    this.draggable.disable()
-    $.each(this.markers,function(i,m) {
-      m.setFromIcons('locked')
-    })
-  },
+  debug: function() {
+    if ($L.debug) {
+      $('#debugmarkers').show()
+      $('#debug-green').css('left',this.getPosition().x)
+      $('#debug-green').css('top',this.getPosition().y)
 
-  unlock: function() {
-    this.locked = false
-    this.draggable.enable()
-    this.mode = 'distort'
-    this.changeMode() // reattaches listeners
-    $.each(this.markers,function(i,m) {
-      m.setFromIcons('grey')
-    })
+      $('#debug-green').css('right',this.getPosition().y)
+      $('#debugb').css('left',this.getPosition().x)
+      $('#debugb').css('top',this.getPosition().y)
+      $('#debugb').css('width',this.getPosition().x)
+      $('#debugb').css('height',this.getPosition().y)
+      $('#debug').css('left',this.initialPos.x)
+      $('#debug').css('top',this.initialPos.y)
+      for (i=0;i<4;i++) {
+        $('#debug'+i).css('left',this.corners[2*i])
+        $('#debug'+i).css('top',this.corners[2*i+1])
+      }
+    }
   }
 
 });
