@@ -191,6 +191,27 @@ L.EditHandle = L.Marker.extend({
 		this._handled.off('update', this.updateHandle, this);
 	}
 });
+
+L.LockHandle = L.EditHandle.extend({
+	options: {
+		TYPE: 'lock',
+		icon: new L.Icon({ 
+			iconUrl: '../src/images/close_444444_16.png',
+			iconSize: [16, 16],
+			iconAnchor: [8, 8]}
+		)
+	},
+
+	/* cannot be dragged */
+	_onHandleDrag: function() {
+	},
+
+	updateHandle: function() {
+		this.setLatLng(this._handled._corners[this._corner]);
+	}
+
+});
+
 L.DistortHandle = L.EditHandle.extend({
 	options: {
 		TYPE: 'distort',
@@ -484,75 +505,121 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
 
 L.DistortableImage = L.DistortableImage || {};
 
-L.DistortableImage.EDIT_TOOLBAR = [
+var EditOverlayAction = L.ToolbarAction.extend({
+		initialize: function(map, overlay, options) {
+			this._overlay = overlay;
+			this._map = map;
 
-	/* Toggle transparency. */
-	function(map, overlay) {
-		return L.DistortableImage.toolbarHandlerFor(overlay.editing._toggleTransparency, {
+			L.ToolbarAction.prototype.initialize.call(this, options);
+		}
+	}),
+
+	ToggleTransparency = EditOverlayAction.extend({
+		options: { toolbarIcon: { 
 			html: '<span class="fa fa-adjust"></span>',
+			tooltip: 'Toggle Image Transparency',
 			title: 'Toggle Image Transparency'	
-		}, overlay.editing);
-	},
+		}},
 
-	/* Delete image. */
-	function(map, overlay) {
-		return L.DistortableImage.toolbarHandlerFor(function() {
-			map.removeLayer(overlay);
-		}, {
-			html: '<span class="fa fa-trash"></span>',
-			title: 'Delete image'
-		}, overlay);
-	},
+		addHooks: function() {
+			var editing = this._overlay.editing;
 
-	/* Toggle image outline. */
-	function(map, overlay) {
-		return L.DistortableImage.toolbarHandlerFor(overlay.editing._toggleOutline, {
+			editing._toggleTransparency();
+			this.disable();
+		}
+	}),
+
+	ToggleOutline = EditOverlayAction.extend({
+		options: { toolbarIcon: { 
 			html: '<span class="fa fa-square-o"></span>',
+			tooltip: 'Toggle Image Outline',
 			title: 'Toggle Image Outline'
-		}, overlay.editing);
-	},
+		}},
 
-	/* Toggle locked / unlocked state. */
-	function(map, overlay) {
-		return L.DistortableImage.toolbarHandlerFor(function() {
-			if (this.enabled()) { this.disable(); }
-			else { this.enable(); }
-		}, {
+		addHooks: function() {
+			var editing = this._overlay.editing;
+
+			editing._toggleOutline();
+			this.disable();
+		}
+	}),
+
+	RemoveOverlay = EditOverlayAction.extend({
+		options: { toolbarIcon: { 
+			html: '<span class="fa fa-trash"></span>',
+			tooltip: 'Delete image',
+			title: 'Delete image'
+		}},
+
+		addHooks: function() {
+			var map = this._map;
+
+			map.removeLayer(this._overlay);
+			this.disable();
+		}
+	}),
+
+	ToggleEditable = EditOverlayAction.extend({
+		options: { toolbarIcon: {
 			html: '<span class="fa fa-lock"></span>',
-			title: 'Lock / Unlock editing'
-		}, overlay.editing);
-	},
+			tooltip: 'Lock / Unlock editing',
+			title: 'Lock / Unlock editing'			
+		}},
 
-	/* */
-	function(map, overlay) {
-		var icon = overlay.editing._mode ? 
-			'image' : 
-			'rotate-left';
+		addHooks: function() {
+			var editing = this._overlay.editing;
 
-		return L.DistortableImage.toolbarHandlerFor(overlay.editing._toggleRotateDistort, {
-			html: '<span class="fa fa-' + icon + '"></span>',
-			title: 'Rotate'
-		}, overlay.editing);
-	}
-];
+			editing._toggleLock();
+			this.disable();
+		}
+	}),
 
-/* Shortcut for constructing a ToolbarHandler which executes a function and then finishes. */
-L.DistortableImage.toolbarHandlerFor = function(fn, options, context) {
-	var T = L.ToolbarHandler.extend({
-		initialize: function(iconOptions) {
-			L.setOptions(this, { 
-				toolbarIcon: new L.ToolbarIcon(iconOptions)
-			});
+	ToggleRotateDistort = EditOverlayAction.extend({
+		initialize: function(map, overlay, options) {
+			var icon = overlay.editing._mode === 'rotate' ? 'image' : 'rotate-left';
+
+			options = options || {};
+			options.toolbarIcon = {
+				html: '<span class="fa fa-' + icon + '"></span>',
+				tooltip: 'Rotate',
+				title: 'Rotate'	
+			};
+
+			EditOverlayAction.prototype.initialize.call(this, map, overlay, options);
 		},
 
 		addHooks: function() {
-			fn.call(context);
+			var editing = this._overlay.editing;
+
+			editing._toggleRotateDistort();
 			this.disable();
 		}
 	});
 
-	return new T(options);
-};
+L.DistortableImage.EditToolbar = L.Toolbar.Popup.extend({
+	options: {
+		actions: [
+			ToggleTransparency,
+			RemoveOverlay,
+			ToggleOutline,
+			ToggleEditable,
+			ToggleRotateDistort
+		]
+	},
+
+	/* Remove the toolbar after each action. */
+	_getActionConstructor: function(Action) {
+		var A = Action.extend({
+			removeHooks: function() {
+				var map = this._map;
+
+				map.removeLayer(this.toolbar);
+			}
+		});
+
+		return L.Toolbar.prototype._getActionConstructor.call(this, A);
+	}
+});
 
 L.DistortableImage = L.DistortableImage || {};
 
@@ -563,7 +630,7 @@ L.DistortableImage.Edit = L.Handler.extend({
 		keymap: {
 			68: '_toggleRotateDistort', // d
 			73: '_toggleIsolate', // i
-			76: '_toggleEnabled', // l
+			76: '_toggleLock', // l
 			79: '_toggleOutline', // o
 			82: '_toggleRotateDistort', // r
 			84: '_toggleTransparency', // t
@@ -583,6 +650,11 @@ L.DistortableImage.Edit = L.Handler.extend({
 			map = overlay._map,
 			i;
 
+		this._lockHandles = new L.LayerGroup();
+		for (i = 0; i < 4; i++) {
+			this._lockHandles.addLayer(new L.LockHandle(overlay, i));
+		}
+
 		this._distortHandles = new L.LayerGroup();
 		for (i = 0; i < 4; i++) {
 			this._distortHandles.addLayer(new L.DistortHandle(overlay, i));
@@ -595,6 +667,7 @@ L.DistortableImage.Edit = L.Handler.extend({
 
 		this._mode = 'distort';
 		this._handles = { 
+			'lock':		this._lockHandles, 
 			'distort': this._distortHandles, 
 			'rotate':  this._rotateHandles
 		};
@@ -604,6 +677,9 @@ L.DistortableImage.Edit = L.Handler.extend({
 		this._enableDragging();
 
 		overlay.on('click', this._showToolbar, this);
+
+		/* Hide toolbars while dragging; click will re-show it */
+		this.dragging.on('dragstart', this._hideToolbar, this);
 
 		/* Enable hotkeys. */
 		L.DomEvent.on(window, 'keydown', this._onKeyDown, this);
@@ -617,10 +693,15 @@ L.DistortableImage.Edit = L.Handler.extend({
 
 		overlay.off('click', this._showToolbar, this);
 
-		this.dragging.disable();
+		// First, check if dragging exists;
+		// it may be off due to locking
+		if (this.dragging) { this.dragging.disable(); }
 		delete this.dragging;
 
 		map.removeLayer(this._handles[this._mode]);
+
+ 		/* Disable hotkeys. */
+		L.DomEvent.off(window, 'keydown', this._onKeyDown, this);
 	},
 
 	_rotateBy: function(angle) {
@@ -667,8 +748,8 @@ L.DistortableImage.Edit = L.Handler.extend({
 
 		/* 
 		 * Adjust default behavior of L.Draggable.
-	     * By default, L.Draggable overwrites the CSS3 distort transform 
-	     *     that we want when it calls L.DomUtil.setPosition.
+		 * By default, L.Draggable overwrites the CSS3 distort transform 
+		 * that we want when it calls L.DomUtil.setPosition.
 		 */
 		this.dragging._updatePosition = function() {
 			var delta = this._newPos.subtract(map.latLngToLayerPoint(overlay._corners[0])),
@@ -733,18 +814,42 @@ L.DistortableImage.Edit = L.Handler.extend({
 		image.style.outline = outline;
 	},
 
-	_toggleEnabled: function() {
-		if (this.enabled()) { 
-			this.disable(); 
+	_toggleLock: function() {
+		var map = this._overlay._map;
+
+		map.removeLayer(this._handles[this._mode]);
+		/* Switch mode. */
+		if (this._mode === 'lock') { 
+			this._mode = 'distort'; 
+			this._enableDragging();
+		} else {
+			this._mode = 'lock';
+			if (this.dragging) { this.dragging.disable(); }
+			delete this.dragging;
 		}
-		else { 
-			this.enable(); 
+
+		map.addLayer(this._handles[this._mode]);
+	},
+
+	_hideToolbar: function() {
+		var map = this._overlay._map;
+		if (this.toolbar) {
+			map.removeLayer(this.toolbar);
 		}
 	},
 
 	_showToolbar: function(event) {
-		new L.Toolbar.Popup(event.latlng, L.DistortableImage.EDIT_TOOLBAR)
-			.addTo(this._overlay._map, this._overlay);
+		var overlay = this._overlay,
+			map = overlay._map;
+
+		/* Ensure that there is only ever one toolbar attached to each image. */
+		this._hideToolbar();
+		
+		var point;
+		if (event.containerPoint) { point = event.containerPoint; }
+		else { point = event.target._dragStartTarget._leaflet_pos; }
+		var raised_point = map.containerPointToLatLng(new L.Point(point.x,point.y-20));
+		this.toolbar = new L.DistortableImage.EditToolbar(raised_point).addTo(map, overlay);
 	},
 
 	toggleIsolate: function() {
@@ -764,27 +869,8 @@ L.DistortableImage.Edit = L.Handler.extend({
 		// this.setOpacity(1);
 	},
 
-	toggleVisibility: function() {
-		// this.hidden = !this.hidden;
-		// if (this.hidden) {
-		// 	this.setOpacity(1);
-		// } else {
-		// 	this.setOpacity(0);
-		// }
-	},
-
 	deselect: function() {
 		// $L.selected = false;
-		// for (var i in this.markers) {
-		// 	// this isn't a good way to hide markers:
-		// 	this._overlay._map.removeLayer(this.markers[i]);
-		// }
-		// if (this.outlineBtn) {
-		// 	// delete existing buttons
-		// 	this.outlineBtn._container.remove();
-		// 	this.transparencyBtn._container.remove();
-		// 	this.deleteBtn._container.remove();
-		// }
 		// this.onDeselect();
 	},
 
@@ -797,34 +883,6 @@ L.DistortableImage.Edit = L.Handler.extend({
 		// // re-establish order
 		// $L.impose_order();
 		// $L.selected = this;
-		// // show corner markers
-		// for (var i in this.markers) {
-		// 	this.markers[i].addTo(this._overlay._map);
-		// }
-
-		// // create buttons
-		// this.transparencyBtn = L.easyButton('fa-adjust', 
-		// 	L.bind(function() { this.toggleTransparency(); }, this),
-		// 	'Toggle Image Transparency',
-		// 	this._overlay._map,
-		// 	this
-		// );
-
-		// this.outlineBtn = L.easyButton('fa-square-o',
-		// 	L.bind(function() { this.toggleOutline(); }, this),
-		// 	'Outline',
-		// 	this._overlay._map,
-		// 	this
-		// );
-
-		// this.deleteBtn = L.easyButton('fa-bitbucket',
-		// 	L.bind(function () {
-		// 		this._overlay._map.removeLayer($(this.parentImgId));
-		// 		for (var i = 0; i < 4; i++) { 
-		// 			this._overlay._map.removeLayer(this.markers[i]); 
-		// 		}
-		// 	}, this),
-		// 'Delete Image');
 
 		// this.bringToFront();
 		// this.onSelect();
