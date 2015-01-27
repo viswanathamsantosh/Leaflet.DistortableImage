@@ -2,13 +2,21 @@
   "name": "Leaflet.DistortableImage",
   "version": "0.0.11",
   "description": "Leaflet plugin enabling image overlays to be distorted, stretched, and warped (built for Public Lab's MapKnitter: http://publiclab.org).",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/publiclab/Leaflet.DistortableImage.git"
   },
+  "main": "dist/leaflet.distortableimage.js",
+  "ignore": [
+    "examples",
+    "node_modules",
+    "src",
+    "test",
+    "bower.json",
+    "Gruntfile.js",
+    "package.json",
+    "README.md"
+  ],
   "keywords": [
     "leaflet",
     "mapknitter",
@@ -17,10 +25,6 @@
   ],
   "author": "Anish Shah, Jeff Warren, Justin Manley",
   "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/publiclab/Leaflet.DistortableImage/issues"
-  },
-  "homepage": "https://github.com/publiclab/Leaflet.DistortableImage",
   "devDependencies": {
     "chai": "^1.10.0",
     "font-awesome": "^4.2.0",
@@ -36,7 +40,7 @@
     "karma-mocha-reporter": "^0.3.1",
     "karma-phantomjs-launcher": "^0.1.4",
     "leaflet": "^0.7.3",
-    "leaflet-toolbar": "git+https://github.com/Leaflet/Leaflet.toolbar.git",
+    "leaflet-toolbar": "git+https://github.com/manleyjster/Leaflet.Toolbar.git",
     "matchdep": "^0.3.0",
     "mocha": "^2.0.1",
     "sinon": "^1.12.2"

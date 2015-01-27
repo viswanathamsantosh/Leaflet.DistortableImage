@@ -1,6 +1,6 @@
 L.DomUtil = L.extend(L.DomUtil, {
 	getMatrixString: function(m) {
-		var is3d = L.Browser.webkit3d,
+		var is3d = L.Browser.webkit3d || L.Browser.gecko3d,
 
 			/* 
 		     * Since matrix3d takes a 4*4 matrix, we add in an empty row and column, which act as the identity on the z-axis.
@@ -32,6 +32,7 @@ L.DomUtil = L.extend(L.DomUtil, {
 		return open + rotateString + ')';
 	}
 });
+
 L.Map.include({
 	_newLayerPointToLatLng: function(point, newZoom, newCenter) {
 		var topLeft = L.Map.prototype._getNewTopLeftPoint.call(this, newCenter, newZoom)
@@ -196,7 +197,7 @@ L.LockHandle = L.EditHandle.extend({
 	options: {
 		TYPE: 'lock',
 		icon: new L.Icon({ 
-			iconUrl: '../src/images/close_444444_16.png',
+      iconUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA3ElEQVR4nM3TMU4CQRSH8d8qJ6AgFia2xksYkj0AhVa2JhRGbfEENJyA3oIjUHkFG42tHUE08QAGC8YwjG8LQsOrdnfm+/Y/7+1WdV3bpQ52ogPBJW6CfUcY4aRcaGXX1xijwjEeMvgJp7jAOd6jBKMEwwDDApYS3DYdoY+f7H6AlwyGt/SiUDDBVSFpF3AXsybBn+TO//qK4EjQEU+hjfvg+YagY9Wws2ijdWMbBdMCfk1pysZuJMy/g48C7mKOTzziEEssmhL0UornDGY9nW+rUU9yQbV3P9PW9QuPNylUonujQAAAAABJRU5ErkJggg%3D%3D',
 			iconSize: [16, 16],
 			iconAnchor: [8, 8]}
 		)
@@ -216,7 +217,7 @@ L.DistortHandle = L.EditHandle.extend({
 	options: {
 		TYPE: 'distort',
 		icon: new L.Icon({
-			iconUrl: '../src/images/circle-o_444444_16.png',
+      iconUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABH0lEQVR4nKXTvy5EURDH8c8V/SJBr9HzBFiN/7wAzWolIoqloCBRiJ7GvoBd/0IhnsB6hO0pWE+wintOcnKzZMUkN5Mzmd/3zNyZk5XLZf+xvi6xUeyjiU984AVVDBeT+wvnZVxioBCfDN8O1nHbrYIl1IP4HjMYxBBm8RDO11gsAkZQQ4Y9LOAZ7dDGE+ZwEHJqsZ0IqISb73Bc7DOxQzyGSiopYC34s1/E0U5TTQSMBf/aA6CZaiIgC77TAyDmZCmgFfxED4CY00oB9eC3egBsp5oIOMeXfJF2fxFXMS8f70UKeJNvWAcnaGAKJfl4p+XbdxRyNoJGVnhMK/JVLv1QQTtcdBMDxbfQwDg2sSofVUf+w65C2e+poFjBn+0bdEY280EXr3wAAAAASUVORK5CYII%3D',
 			iconSize: [16, 16],
 			iconAnchor: [8, 8]}
 		)
@@ -232,11 +233,12 @@ L.DistortHandle = L.EditHandle.extend({
 		this._handled.fire('update');
 	}
 });
+
 L.RotateHandle = L.EditHandle.extend({
 	options: {
 		TYPE: 'rotate',
 		icon: new L.Icon({ 
-			iconUrl: '../src/images/circle-o_cc4444_16.png',
+      iconUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABG0lEQVR4nKXSvS5EURTF8d8V/SBBr9F7A4zGNy9AQytRKIaCgkQhehrzAmZ8hUI8wYxHmJ7CjCcYxT0nublmJlecZueerPXf69y9k0a57D9nqMfdJI7QRBtfaKCC8bw4ySVYww1G+jRsYwsPvRKsohbMT5jHKMawgOfwfYeVPGACVSQ4xDLe0AldX7GI46CpxudEwE7o/IizPvHhBC8hyU4WsBnq5QBzPBdZTwRMhfpeANDMeiIgCbVbABA1SRbQCnWmACBqWllALdS9AoD9rCcCrvAtXaSDAeYKlqTjvc4CPqQb1sU56phFSTreOen2nQbNdvD8WuV16SqX+iTohEb38WI4J6hjGrvYkI6qK/1htyH2Z9aQT/Dn8wMV5jnxJDAcbAAAAABJRU5ErkJggg%3D%3D',
 			iconSize: [16, 16],
 			iconAnchor: [8, 8]}
 		)
@@ -296,6 +298,7 @@ L.RotateHandle = L.EditHandle.extend({
 		return Math.pow(dx, 2) + Math.pow(dy, 2);
 	}
 });
+
 L.DistortableImageOverlay = L.ImageOverlay.extend({
 	include: L.Mixin.Events,
 
@@ -321,16 +324,15 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
 		map._panes.overlayPane.appendChild(this._image);
 
 		map.on('viewreset', this._reset, this);
-
-		if (map.options.zoomAnimation && L.Browser.any3d) {
-			map.on('zoomanim', this._animateZoom, this);
-		}
 		/* End copied from L.ImageOverlay */
 
 		/* Have to wait for the image to load because we need to access its width and height. */
 		L.DomEvent.on(this._image, 'load', function() {
 			this._initImageDimensions();
 			this._reset();
+			if (map.options.zoomAnimation && L.Browser.any3d) {
+				map.on('zoomanim', this._animateZoom, this);
+			}
 		}, this);		
 
 		this.fire('add');	
@@ -356,23 +358,21 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
 			originalImageWidth = L.DomUtil.getStyle(this._image, 'width'),
 			originalImageHeight = L.DomUtil.getStyle(this._image, 'height'),
 
-			aspectRatio = originalImageWidth / originalImageHeight,
-			mapHeight = L.DomUtil.getStyle(map._container, 'height'),
-			mapWidth = L.DomUtil.getStyle(map._container, 'width'),
+			aspectRatio = parseInt(originalImageWidth) / parseInt(originalImageHeight),
 
 			imageHeight = this.options.height,
-			imageWidth = aspectRatio*imageHeight,
+			imageWidth = parseInt(aspectRatio*imageHeight),
 
 			center = map.latLngToContainerPoint(map.getCenter()),
-			offset = new L.Point(mapWidth - imageWidth, mapHeight - imageHeight).divideBy(2);
+			offset = new L.Point(imageWidth, imageHeight).divideBy(2);
 
 		if (this.options.corners) { this._corners = this.options.corners; }
 		else {
 			this._corners = [
 				map.containerPointToLatLng(center.subtract(offset)),
 				map.containerPointToLatLng(center.add(new L.Point(offset.x, - offset.y))),
-				map.containerPointToLatLng(center.add(offset)),
-				map.containerPointToLatLng(center.add(new L.Point(- offset.x, offset.y)))
+				map.containerPointToLatLng(center.add(new L.Point(- offset.x, offset.y))),
+				map.containerPointToLatLng(center.add(offset))
 			];
 		}
 	},
@@ -390,9 +390,9 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
  		if (!this.hasEventListeners(event.type)) { return; }
 
 		var map = this._map,
-		    containerPoint = map.mouseEventToContainerPoint(event),
-		    layerPoint = map.containerPointToLayerPoint(containerPoint),
-		    latlng = map.layerPointToLatLng(layerPoint);
+				containerPoint = map.mouseEventToContainerPoint(event),
+				layerPoint = map.containerPointToLayerPoint(containerPoint),
+				latlng = map.layerPointToLatLng(layerPoint);
 
 		this.fire(event.type, {
 			latlng: latlng,
@@ -430,7 +430,7 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
 	/*
 	 * Calculates the transform string that will be correct *at the end* of zooming.
 	 * Leaflet then generates a CSS3 animation between the current transform and 
-	 *     future transform which makes the transition appear smooth.
+	 *		 future transform which makes the transition appear smooth.
 	 */
 	_animateZoom: function(event) {
 		var map = this._map,
@@ -457,7 +457,7 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
 
 	/*
 	 * Calculates the centroid of the image.
-	 *     See http://stackoverflow.com/questions/6149175/logical-question-given-corners-find-center-of-quadrilateral
+	 *		 See http://stackoverflow.com/questions/6149175/logical-question-given-corners-find-center-of-quadrilateral
 	 */
 	getCenter: function(ll2c, c2ll) {
 		var map = this._map,
@@ -489,10 +489,10 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
 		/*
 		 * This matrix describes the action of the CSS transform on each corner of the image.
 		 * It maps from the coordinate system centered at the upper left corner of the image
-		 *     to the region bounded by the latlngs in this._corners.
+		 *		 to the region bounded by the latlngs in this._corners.
 		 * For example:
-		 *     0, 0, c[0].x, c[0].y
-		 *     says that the upper-left corner of the image maps to the first latlng in this._corners.
+		 *		 0, 0, c[0].x, c[0].y
+		 *		 says that the upper-left corner of the image maps to the first latlng in this._corners.
 		 */
 		return L.MatrixUtil.general2DProjection(
 			0, 0, c[0].x, c[0].y,
@@ -641,10 +641,12 @@ L.DistortableImage.Edit = L.Handler.extend({
 		this._overlay = overlay;
 
 		/* Interaction modes. */
+		this._mode = this._overlay.options.mode || 'distort';
 		this._transparent = false;
 		this._outlined = false;
 	},
 
+	/* Run on image seletion. */
 	addHooks: function() {
 		var overlay = this._overlay,
 			map = overlay._map,
@@ -665,26 +667,29 @@ L.DistortableImage.Edit = L.Handler.extend({
 			this._rotateHandles.addLayer(new L.RotateHandle(overlay, i));
 		}
 
-		this._mode = 'distort';
 		this._handles = { 
-			'lock':		this._lockHandles, 
+			'lock':		 this._lockHandles, 
 			'distort': this._distortHandles, 
 			'rotate':  this._rotateHandles
 		};
 
-		map.addLayer(this._distortHandles);
-
-		this._enableDragging();
+		if (this._mode === 'lock') {
+			map.addLayer(this._lockHandles);
+		} else {
+			this._mode = 'distort';
+			map.addLayer(this._distortHandles);
+			this._enableDragging();
+		}
 
 		overlay.on('click', this._showToolbar, this);
 
-		/* Hide toolbars while dragging; click will re-show it */
-		this.dragging.on('dragstart', this._hideToolbar, this);
-
 		/* Enable hotkeys. */
 		L.DomEvent.on(window, 'keydown', this._onKeyDown, this);
+
+    overlay.fire('select');
 	},
 
+	/* Run on image deseletion. */
 	removeHooks: function() {
 		var overlay = this._overlay,
 			map = overlay._map;
@@ -702,6 +707,8 @@ L.DistortableImage.Edit = L.Handler.extend({
 
  		/* Disable hotkeys. */
 		L.DomEvent.off(window, 'keydown', this._onKeyDown, this);
+
+    overlay.fire('deselect');
 	},
 
 	_rotateBy: function(angle) {
@@ -745,6 +752,9 @@ L.DistortableImage.Edit = L.Handler.extend({
 
 		this.dragging = new L.Draggable(overlay._image);
 		this.dragging.enable();
+
+		/* Hide toolbars while dragging; click will re-show it */
+		this.dragging.on('dragstart', this._hideToolbar, this);
 
 		/* 
 		 * Adjust default behavior of L.Draggable.
@@ -867,26 +877,8 @@ L.DistortableImage.Edit = L.Handler.extend({
 		// }
 		// this.hidden = false;
 		// this.setOpacity(1);
-	},
-
-	deselect: function() {
-		// $L.selected = false;
-		// this.onDeselect();
-	},
-
-	select: function() {
-		// // deselect other images
-		// $.each($L.images,function(i,d) {
-		// 	d.deselect.apply(d);
-		// });
-
-		// // re-establish order
-		// $L.impose_order();
-		// $L.selected = this;
-
-		// this.bringToFront();
-		// this.onSelect();
 	}
+
 });
 
 L.DistortableImageOverlay.addInitHook(function() {

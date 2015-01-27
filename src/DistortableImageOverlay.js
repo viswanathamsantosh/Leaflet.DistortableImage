@@ -23,16 +23,15 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
 		map._panes.overlayPane.appendChild(this._image);
 
 		map.on('viewreset', this._reset, this);
-
-		if (map.options.zoomAnimation && L.Browser.any3d) {
-			map.on('zoomanim', this._animateZoom, this);
-		}
 		/* End copied from L.ImageOverlay */
 
 		/* Have to wait for the image to load because we need to access its width and height. */
 		L.DomEvent.on(this._image, 'load', function() {
 			this._initImageDimensions();
 			this._reset();
+			if (map.options.zoomAnimation && L.Browser.any3d) {
+				map.on('zoomanim', this._animateZoom, this);
+			}
 		}, this);		
 
 		this.fire('add');	
@@ -58,23 +57,21 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
 			originalImageWidth = L.DomUtil.getStyle(this._image, 'width'),
 			originalImageHeight = L.DomUtil.getStyle(this._image, 'height'),
 
-			aspectRatio = originalImageWidth / originalImageHeight,
-			mapHeight = L.DomUtil.getStyle(map._container, 'height'),
-			mapWidth = L.DomUtil.getStyle(map._container, 'width'),
+			aspectRatio = parseInt(originalImageWidth) / parseInt(originalImageHeight),
 
 			imageHeight = this.options.height,
-			imageWidth = aspectRatio*imageHeight,
+			imageWidth = parseInt(aspectRatio*imageHeight),
 
 			center = map.latLngToContainerPoint(map.getCenter()),
-			offset = new L.Point(mapWidth - imageWidth, mapHeight - imageHeight).divideBy(2);
+			offset = new L.Point(imageWidth, imageHeight).divideBy(2);
 
 		if (this.options.corners) { this._corners = this.options.corners; }
 		else {
 			this._corners = [
 				map.containerPointToLatLng(center.subtract(offset)),
 				map.containerPointToLatLng(center.add(new L.Point(offset.x, - offset.y))),
-				map.containerPointToLatLng(center.add(offset)),
-				map.containerPointToLatLng(center.add(new L.Point(- offset.x, offset.y)))
+				map.containerPointToLatLng(center.add(new L.Point(- offset.x, offset.y))),
+				map.containerPointToLatLng(center.add(offset))
 			];
 		}
 	},
@@ -92,9 +89,9 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
  		if (!this.hasEventListeners(event.type)) { return; }
 
 		var map = this._map,
-		    containerPoint = map.mouseEventToContainerPoint(event),
-		    layerPoint = map.containerPointToLayerPoint(containerPoint),
-		    latlng = map.layerPointToLatLng(layerPoint);
+				containerPoint = map.mouseEventToContainerPoint(event),
+				layerPoint = map.containerPointToLayerPoint(containerPoint),
+				latlng = map.layerPointToLatLng(layerPoint);
 
 		this.fire(event.type, {
 			latlng: latlng,
@@ -132,7 +129,7 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
 	/*
 	 * Calculates the transform string that will be correct *at the end* of zooming.
 	 * Leaflet then generates a CSS3 animation between the current transform and 
-	 *     future transform which makes the transition appear smooth.
+	 *		 future transform which makes the transition appear smooth.
 	 */
 	_animateZoom: function(event) {
 		var map = this._map,
@@ -159,7 +156,7 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
 
 	/*
 	 * Calculates the centroid of the image.
-	 *     See http://stackoverflow.com/questions/6149175/logical-question-given-corners-find-center-of-quadrilateral
+	 *		 See http://stackoverflow.com/questions/6149175/logical-question-given-corners-find-center-of-quadrilateral
 	 */
 	getCenter: function(ll2c, c2ll) {
 		var map = this._map,
@@ -191,10 +188,10 @@ L.DistortableImageOverlay = L.ImageOverlay.extend({
 		/*
 		 * This matrix describes the action of the CSS transform on each corner of the image.
 		 * It maps from the coordinate system centered at the upper left corner of the image
-		 *     to the region bounded by the latlngs in this._corners.
+		 *		 to the region bounded by the latlngs in this._corners.
 		 * For example:
-		 *     0, 0, c[0].x, c[0].y
-		 *     says that the upper-left corner of the image maps to the first latlng in this._corners.
+		 *		 0, 0, c[0].x, c[0].y
+		 *		 says that the upper-left corner of the image maps to the first latlng in this._corners.
 		 */
 		return L.MatrixUtil.general2DProjection(
 			0, 0, c[0].x, c[0].y,
